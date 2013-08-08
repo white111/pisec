@@ -1,0 +1,27 @@
+body { 
+height: 1000px;
+background: #888888;
+background-position:center;
+}
+
+#main {
+width: 800px;
+height: 1000px;
+}
+
+#par0 {
+    width: 150px;
+    height: 150px;
+}
+
+#par1 {
+    width: 150px;
+    height: 150px;
+}
+
+td { width : 100px; height: 100px; }
+
+
+
+
+

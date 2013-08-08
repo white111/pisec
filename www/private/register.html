@@ -1,0 +1,25 @@
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <link href="styl.css" media="screen" rel="stylesheet" type="text/css" />
+        <script type="text/javascript" src="jquery-1.2.6.min.js"></script> 
+        <script type="text/javascript" src="sha512.js"></script>
+        <script type="text/javascript" src="pubfunc.js"></script> 
+    </head>
+    <body>
+             
+<form action="regusr.php" method="post">
+Login  : <input type="text" name="logon" /><br />
+Haslo : <input type="password" id="password" name="passinput" /><br />
+Email : <input type="text"  name="email" /><br />
+<input type="button" value="Register" onclick="formhash(this.form, this.form.password);" />
+</form>   
+             
+    </body>
+</html>

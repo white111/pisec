@@ -1,0 +1,22 @@
+delimiter $$
+CREATE TABLE `passwd` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(30) NOT NULL,
+  `email` varchar(50) NOT NULL,
+  `password` char(128) NOT NULL,
+  `salt` char(128) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8$$
+
+
+
+
+delimiter $$
+
+CREATE TABLE `login_attempts` (
+  `user_id` int(11) NOT NULL,
+  `time` varchar(30) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8$$
+
+
+
