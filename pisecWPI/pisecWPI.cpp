@@ -1,3 +1,21 @@
+/*
+Copyright (C) Dominik Guz
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
@@ -8,10 +26,7 @@
 #include <iostream>
 #include <sys/sem.h>
 #include <time.h>
-extern "C" {
-#include <pfio.h> 
-} 
-
+#include <wiringPi.h> 
 
 #define NO 0
 #define NC 1
@@ -19,14 +34,24 @@ extern "C" {
 #define HIGH 1
 #define LOW 0
 
-void savehwstate();
-void shmini();
-void readstate();
-bool outputnow(int outno);
-bool softa = 0;
+    void savehwstate();
+    void shmini();
+    void readstate();
+	bool outputnow(int outno);
+	bool softa = 0;
 
 using namespace std;
 
+/*
+digitalWrite(int pin, int value) - write 0 or 1 to pin
+digitalRead(int pin) - read pin value
+*/
+
+/* Define how many pins are used as inputs and outputs ,
+*/
+
+const char inPins = 10;
+const char outPins = 7; 
 const char* shmobjpath = "/var/www/html/pisecSHM";
 const char shmprojid = 97;
 const char shmsize = outPins+2;
@@ -37,8 +62,6 @@ y = yes = char(121)
 r = reset = char(114)
 used for compability with PHP IPC funcs that parse memory as chars and output string
 */
-	char outPins = 8;
-	char inPins = 8;
 
 	//startup arm / violation state
 	char armed = 110;
@@ -46,13 +69,29 @@ used for compability with PHP IPC funcs that parse memory as chars and output st
 
 	//synchronize with shared memory every X sec
 	int websyncsec = 4;
+	/*
+	WiringPi Pins corresponding to GPIO like : 
+	0-6 (GPIO 17, 18, 21(r1), 27(R2), 22, 23, 24, 25)
+	7   (GPIO 4)
+	PWM (GPIO 18)
+	8-9 (GPIO 0,1(R1) | 2,3(R2)
+	10-14 (GPIO 8, 7, 10, 9, 11)
+	15-16 (GPIO 14, 15)
+	17-20 (GPIO 28, 29, 30, 31) - R2
+	*/
+
+	//wiringPi pin numbers, corresponding to inputs/outputs, order has to match with port COMs (NO/NC) 
+	char inPinNo[inPins] = {0, 1, 2, 3, 4, 5, 6, 10, 11, 12 }; //define wiringPi numbers for each input
+	char outPinNo[outPins] = {8,9,13,14,15,16,17}; //define wiringPi numbers for each output
 
 	char state[outPins+2]; //0-arm 1-violation 2-outPins - output state 
 	char soa[outPins]; // software output activation 
 
 	//hardware arm/disarm inputs, default to first two inputs 
-	char armPin = 0;
-	char disarmPin = 1;
+	char armPinId = 0;
+	char disarmPinId = 1;
+	char armPin =   inPinNo[armPinId];
+	char disarmPin = inPinNo[disarmPinId];
 
 	int rc;
 
@@ -68,7 +107,7 @@ used for compability with PHP IPC funcs that parse memory as chars and output st
     void readstate();
 
 	//define default states for each input
-	bool inputsCOM[inPins] = { NO, NO, NO, NO, NO, NO, NO, NO};
+	bool inputsCOM[inPins] = { NO, NO, NO, NO, NO, NO, NO, NO, NO, NO };
 
 	//default output activation states  
 	// 1 - arm = 0 vio = 0 
@@ -77,7 +116,7 @@ used for compability with PHP IPC funcs that parse memory as chars and output st
 	// 4 - arm = 1 vio = 1
 	//5-10 - sum of previous 
 	// >10 - always off
-	int outputsCOM[outPins] = {1,2,4,11,11,11,11,11};
+	int outputsCOM[outPins] = {1,2,4,11,11,11,11};
 
 
 /*
@@ -138,12 +177,12 @@ Read and write system state to shared memory
 		{
 				if ( outputnow(i) ) //system state and output condition match
 					{
-						pfio_digital_write(i, 1); 
+						digitalWrite(outPinNo[i], 1); 
 						state[i+2] = 121; //y
 					}
 				else //deactivate output it not used in this state
 					{  
-						pfio_digital_write(i, 0); 
+						digitalWrite(outPinNo[i], 0); 
 						state[i+2] = 110; //n
 					} 
 
@@ -206,12 +245,21 @@ Read and write system state to shared memory
 
 	void setup()
 	{
-		
+		//setup output / input pin direction and value
 		for(int i = 0; i<outPins; i++) 
 		{
-			pfio_digital_write(i, 0);	
+			pinMode(outPinNo[i], OUTPUT);
+			digitalWrite(outPinNo[i], LOW);	
 		}
  
+
+		for(int i = 0; i<inPins; i++) 
+		{
+			pinMode(inPinNo[i], INPUT);
+			digitalWrite(inPinNo[i], LOW);	
+		
+		}
+
 		//set default states
 		fill(state, &state[outPins+2],110);
 		fill(soa, &soa[outPins] , 114);
@@ -232,7 +280,7 @@ Read and write system state to shared memory
 	{
 
 	daemon(1,1);
-	if (pfio_init() < 0 )
+	if ( wiringPiSetup()  < 0 ) //call wiringPi init
 	exit(-1);
 	
 	shmini();
@@ -248,19 +296,19 @@ Read and write system state to shared memory
 
 			if ( ((clock() - lwebchk) >  2*CLOCKS_PER_SEC ) || (sleepct == 2)  ) 	//get state from shared memory to sync with web input
 			{ 
-				readstate();
+				readstate();				
 				lwebchk = clock();
 				sleepct = 0;
 			}
 			//by default arm pin is first input, disarm is second, change if needed
-			if ( (pfio_digital_read(armPin) != inputsCOM[armPin]) || ( (state[0] - armed) > 0 )   )  //arm pin state different then normal or shared state armed  while local not
+			if ( (digitalRead(armPin) != inputsCOM[armPinId]) || ( (state[0] - armed) > 0 )   )  //arm pin state different then normal or shared state armed  while local not
 			{  
 				armed = 121;
 				state[0] = 121;
 				putout(); //first output to save correct out states
 				savehwstate(); //save arm state
 			}
-			else if ( (pfio_digital_read(disarmPin) != inputsCOM[disarmPin]) || ( (state[0] - armed )<0 ) )   //arm pin state different then normal or shared disarmed while local armed
+			else if ( (digitalRead(disarmPin) != inputsCOM[disarmPinId]) || ( (state[0] - armed )<0 ) )   //arm pin state different then normal or shared disarmed while local armed
 			{
 				armed = 110;
 				state[0] = 110;
@@ -279,7 +327,7 @@ Read and write system state to shared memory
 			{
 				if ( violation != 121 )  //check only if no ongoing alarm 
 				{
-					if (pfio_digital_read(i) != inputsCOM[i]) && (armed == 121) ) //input state different from normal, system armed 
+					if ( (digitalRead(inPinNo[i]) != inputsCOM[i]) && (armed == 121) ) //input state different from normal, system armed 
 					{
 						violation = 121;
 						state[1] = 121;
@@ -303,15 +351,3 @@ Read and write system state to shared memory
 		return 0;
 
 	}
-
-
-
-
-
-
-
-
-
-
-
-
